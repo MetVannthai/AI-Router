@@ -219,6 +219,29 @@
         text-align: center;
         font-size: 13px;
       }
+      .auth-choices {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-bottom: 24px;
+        padding: 4px;
+        background: var(--surface-2);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+      }
+      .auth-choice {
+        min-height: 38px;
+        color: var(--muted);
+        background: transparent;
+        border: 0;
+        border-radius: 8px;
+        font-weight: 700;
+      }
+      .auth-choice.active {
+        color: var(--text);
+        background: var(--surface);
+        box-shadow: 0 2px 8px rgba(16, 31, 28, 0.08);
+      }
       .text-button {
         color: var(--accent);
         background: none;
@@ -867,24 +890,6 @@
               </svg>
             </button>
           </div>
-          <button
-            id="exportButton"
-            class="button button-secondary"
-            type="button"
-          >
-            Export</button
-          ><button
-            id="importButton"
-            class="button button-secondary"
-            type="button"
-          >
-            Import</button
-          ><input
-            id="importFile"
-            class="hidden"
-            type="file"
-            accept="application/json"
-          />
         </div>
         <div id="recordGrid" class="record-grid"></div>
       </main>
@@ -1145,16 +1150,24 @@
         if (!hasUsers) authMode = "register";
         const register = authMode === "register";
         $("authContent").innerHTML =
-          `<h1>${register ? "Set up your router" : "Welcome back"}</h1><p class="muted">${register ? "Create a local profile to keep your AI tools organized." : "Enter your PIN to open your AI launchpad."}</p>${register ? `<div class="form-field"><label for="nameInput">Name or username</label><input id="nameInput" autocomplete="username" maxlength="40" placeholder="e.g. Alex"></div>` : `<div class="form-field"><label for="loginNameInput">Username</label><input id="loginNameInput" autocomplete="username" placeholder="Your username"></div>`}<div class="form-field"><label>${register ? "Create a 6-digit PIN" : "6-digit PIN"}</label><div id="authPinRow" class="pin-row" data-pin-row="auth"></div><div id="authPinError" class="error" role="alert"></div></div>${register ? `<div class="form-field"><label>Confirm PIN</label><div id="confirmPinRow" class="pin-row" data-pin-row="confirm"></div><div id="confirmPinError" class="error" role="alert"></div></div>` : `<div class="pin-tools"><label class="check"><input id="rememberInput" type="checkbox"> Remember me</label><button id="showPinButton" class="text-button" type="button">Show PIN</button></div>`}<button id="authSubmit" class="button button-primary full" type="button">${register ? "Create profile" : "Open AI Router"}</button><p class="auth-switch">${register ? "Already have a profile?" : "New here?"} <button id="switchAuth" class="text-button" type="button">${register ? "Log in" : "Create a profile"}</button></p>`;
+          `<div class="auth-choices" role="tablist" aria-label="Account access"><button id="loginChoice" class="auth-choice ${register ? "" : "active"}" type="button" role="tab" aria-selected="${!register}">Log in</button><button id="registerChoice" class="auth-choice ${register ? "active" : ""}" type="button" role="tab" aria-selected="${register}">Create account</button></div><h1>${register ? "Set up your router" : "Welcome back"}</h1><p class="muted">${register ? "Create a profile to keep your AI tools organized." : "Enter your PIN to open your AI launchpad."}</p>${register ? `<div class="form-field"><label for="nameInput">Name or username</label><input id="nameInput" autocomplete="username" maxlength="40" placeholder="e.g. Alex"></div>` : `<div class="form-field"><label for="loginNameInput">Username</label><input id="loginNameInput" autocomplete="username" placeholder="Your username"></div>`}<div class="form-field"><label>${register ? "Create a 6-digit PIN" : "6-digit PIN"}</label><div id="authPinRow" class="pin-row" data-pin-row="auth"></div><div id="authPinError" class="error" role="alert"></div></div>${register ? `<div class="form-field"><label>Confirm PIN</label><div id="confirmPinRow" class="pin-row" data-pin-row="confirm"></div><div id="confirmPinError" class="error" role="alert"></div></div>` : `<div class="pin-tools"><label class="check"><input id="rememberInput" type="checkbox"> Remember me</label><button id="showPinButton" class="text-button" type="button">Show PIN</button></div>`}<button id="authSubmit" class="button button-primary full" type="button">${register ? "Create account" : "Log in"}</button>`;
         makePinInputs($("authPinRow"));
         if (register) makePinInputs($("confirmPinRow"));
         $("authSubmit").addEventListener(
           "click",
           register ? registerUser : loginUser,
         );
-        $("switchAuth").addEventListener("click", () => {
-          authMode = register ? "login" : "register";
+        const switchAuth = (mode) => {
+          authMode = mode;
           renderAuth();
+        };
+        $("loginChoice").addEventListener("click", () => switchAuth("login"));
+        $("registerChoice").addEventListener("click", () => switchAuth("register"));
+        $("loginChoice").addEventListener("keydown", (event) => {
+          if (event.key === "ArrowRight") $("registerChoice").focus();
+        });
+        $("registerChoice").addEventListener("keydown", (event) => {
+          if (event.key === "ArrowLeft") $("loginChoice").focus();
         });
         if (!register)
           $("showPinButton").addEventListener("click", togglePinVisibility);
@@ -1177,21 +1190,10 @@
               .slice(-1);
             if (event.target.value && index < 5)
               container.children[index + 1].focus();
-            if (
-              event.target.value &&
-              index === 5 &&
-              container.dataset.pinRow === "auth" &&
-              authMode === "login"
-            )
-              $("authSubmit").click();
           });
           input.addEventListener("keydown", (event) => {
             if (event.key === "Backspace" && !event.target.value && index > 0)
               container.children[index - 1].focus();
-            if (event.key === "Enter") {
-              event.preventDefault();
-              $("authSubmit").click();
-            }
           });
           input.addEventListener("paste", (event) => {
             const pasted = (event.clipboardData || window.clipboardData)
@@ -1205,12 +1207,6 @@
                   container.children[pastedIndex].value = digit;
               });
               container.children[Math.min(pasted.length, 5)].focus();
-              if (
-                pasted.length === 6 &&
-                container.dataset.pinRow === "auth" &&
-                authMode === "login"
-              )
-                $("authSubmit").click();
             }
           });
           container.appendChild(input);
@@ -1483,59 +1479,6 @@
         $("toastRegion").appendChild(toast);
         setTimeout(() => toast.remove(), 3200);
       }
-      function exportRecords() {
-        const payload = {
-          app: "AI Router",
-          version: 1,
-          exportedAt: new Date().toISOString(),
-          records,
-        };
-        const blob = new Blob([JSON.stringify(payload, null, 2)], {
-          type: "application/json",
-        });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = `ai-router-${currentUser.name.replace(/\W+/g, "-").toLowerCase()}.json`;
-        link.click();
-        URL.revokeObjectURL(link.href);
-        showToast("Backup exported");
-      }
-      function importRecords(file) {
-        const reader = new FileReader();
-        reader.onload = () => {
-          try {
-            const payload = JSON.parse(reader.result);
-            const imported = Array.isArray(payload) ? payload : payload.records;
-            if (!Array.isArray(imported)) throw new Error();
-            const cleaned = imported
-              .filter(
-                (item) =>
-                  item &&
-                  typeof item.title === "string" &&
-                  typeof item.url === "string" &&
-                  /^https?:\/\//i.test(item.url),
-              )
-              .map((item) => ({
-                id: randomId(),
-                userId: currentUser.id,
-                title: item.title.slice(0, 80),
-                url: new URL(item.url).href,
-                icon: iconData(item.icon)[0],
-                createdAt: item.createdAt || new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-              }));
-            records = [...cleaned, ...records];
-            persistRecords();
-            renderRecords();
-            showToast(
-              `${cleaned.length} tool${cleaned.length === 1 ? "" : "s"} imported`,
-            );
-          } catch (error) {
-            showToast("That backup file could not be imported", true);
-          }
-        };
-        reader.readAsText(file);
-      }
       function setTheme(theme) {
         document.documentElement.dataset.theme = theme;
         try {
@@ -1572,14 +1515,6 @@
           document.documentElement.dataset.theme === "dark" ? "light" : "dark",
         ),
       );
-      $("exportButton").addEventListener("click", exportRecords);
-      $("importButton").addEventListener("click", () =>
-        $("importFile").click(),
-      );
-      $("importFile").addEventListener("change", (event) => {
-        if (event.target.files[0]) importRecords(event.target.files[0]);
-        event.target.value = "";
-      });
       $("recordGrid").addEventListener("click", (event) => {
         const edit = event.target.closest("[data-edit]");
         const del = event.target.closest("[data-delete]");
